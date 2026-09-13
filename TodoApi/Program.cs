@@ -1,10 +1,19 @@
+using Microsoft.EntityFrameworkCore;
+
 using TodoApi.Dtos;
+using TodoApi.Models;
+using TodoApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(
+    builder.Configuration.GetConnectionString("DefaultConnection")
+));
 
 var app = builder.Build();
 
@@ -16,8 +25,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var todoGroup = app.MapGroup("/api/todos").WithTags("Todos");
-
 var todos = new List<TodoGetDto>
 {
     new(1, "Learn C#", true),
@@ -25,15 +32,13 @@ var todos = new List<TodoGetDto>
     new(3, "Build a web API", false)
 };
 
-todoGroup.MapGet("/",() => Results.Ok(todos));
-
-todoGroup.MapGet("{id}", (int id) =>
+app.MapGet("/api/todos",() => Results.Ok(todos));
+app.MapGet("/api/todos/{id}", (int id) =>
 {
     var todo = todos.FirstOrDefault(t => t.Id == id);
     return todo is not null ? Results.Ok(todo) : Results.NotFound();
 });
-
-todoGroup.MapPost("", (TodoPostDto dto) =>
+app.MapPost("/api/todos", (TodoPostDto dto) =>
 {
     var nextId = todos.Count == 0 ? 1 : todos.Max(t => t.Id) + 1;
 
@@ -44,44 +49,4 @@ todoGroup.MapPost("", (TodoPostDto dto) =>
     
 });
 
-
-todoGroup.MapPut("/{id}", (int id, TodoPutDto dto)=>
-{
-    try
-    {
-        var index = todos.FindIndex(t => t.Id == id);
-        //if (index == -1) return Results.NotFound();
-
-        todos[index]= todos[index]with
-        {
-            Title = dto.Title,
-            IsCompleted = dto.IsCompleted
-        };
-        return Results.Ok(todos[index]);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(ex.Message);
-    }
-});
-
-todoGroup.MapDelete("/{id}", (int id) =>
-{
-    try
-    {
-        var todo = todos.FirstOrDefault(t => t.Id == id);
-        if (todo is null) return Results.NotFound();
-
-        todos.Remove(todo);
-        return Results.NoContent();
-    }
-    catch (ArgumentOutOfRangeException ex)
-    {
-        return Results.Problem("Parameter is null.(ex.Message");
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(ex.Message);
-    }
-});
 app.Run();
